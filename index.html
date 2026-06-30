@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2477c3">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Iceland Trip">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Iceland Camper Itinerary Map</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="preconnect" href="https://tile.openstreetmap.org">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  >
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <style>
+    :root {
+      --friday: #2477c3;
+      --friday-soft: #e8f3fd;
+      --saturday: #e28c1b;
+      --saturday-soft: #fff1dc;
+      --sunday: #2f9d7e;
+      --sunday-soft: #e5f6f0;
+      --monday: #7b5fc7;
+      --monday-soft: #f0ecff;
+      --ink: #17202a;
+      --muted: #687481;
+      --line: #dbe2ea;
+      --panel: #ffffff;
+      --shadow: 0 18px 55px rgba(23, 32, 42, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #eef3f8;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(330px, 30vw);
+      height: 100vh;
+      height: 100dvh;
+      min-height: 650px;
+    }
+
+    #map {
+      height: 100%;
+      min-width: 0;
+      background: #dce8ef;
+    }
+
+    .timeline {
+      position: relative;
+      z-index: 600;
+      display: flex;
+      min-height: 0;
+      min-width: 0;
+      flex-direction: column;
+      overflow: hidden;
+      border-left: 1px solid rgba(23, 32, 42, 0.1);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .timeline-header {
+      flex: 0 0 auto;
+      padding: 22px 24px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(14px);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .subhead {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 15px;
+    }
+
+    .legend-item {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 7px;
+      color: #354150;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .legend-swatch {
+      width: 12px;
+      height: 12px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+    }
+
+    .timeline-list {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 18px 18px 34px;
+      scroll-behavior: smooth;
+    }
+
+    .day {
+      margin: 0 0 22px;
+      border-left: 4px solid var(--day-color);
+      background: linear-gradient(90deg, var(--day-soft), rgba(255, 255, 255, 0));
+    }
+
+    .day-title {
+      position: sticky;
+      top: -18px;
+      z-index: 2;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0;
+      padding: 13px 12px 10px;
+      border-bottom: 1px solid rgba(23, 32, 42, 0.08);
+      background: color-mix(in srgb, var(--day-soft) 86%, white);
+    }
+
+    .day-title strong {
+      min-width: 0;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+
+    .day-title span {
+      color: color-mix(in srgb, var(--day-color) 70%, black);
+      font-size: 11px;
+      font-weight: 750;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .stop {
+      position: relative;
+      display: grid;
+      grid-template-columns: 66px minmax(0, 1fr);
+      gap: 10px;
+      margin: 0;
+      padding: 12px 12px 12px 14px;
+      border-bottom: 1px solid rgba(23, 32, 42, 0.07);
+      cursor: pointer;
+      transition: background 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+    }
+
+    .stop::before {
+      position: absolute;
+      top: 19px;
+      left: -8px;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #ffffff;
+      border-radius: 999px;
+      background: var(--day-color);
+      box-shadow: 0 0 0 2px var(--day-color);
+      content: "";
+    }
+
+    .stop:hover,
+    .stop.active {
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: inset 4px 0 0 var(--day-color);
+    }
+
+    .stop.active {
+      transform: translateX(-2px);
+    }
+
+    .time {
+      color: color-mix(in srgb, var(--day-color) 78%, black);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.25;
+      text-transform: uppercase;
+    }
+
+    .stop-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 760;
+      line-height: 1.22;
+    }
+
+    .stop-note {
+      margin: 4px 0 0;
+      color: #5d6977;
+      font-size: 12px;
+      line-height: 1.38;
+    }
+
+    .stop-detail {
+      display: none;
+      grid-column: 1 / -1;
+      margin-top: 2px;
+      padding: 0 0 3px 76px;
+    }
+
+    .stop.expanded .stop-detail {
+      display: block;
+    }
+
+    .detail-image {
+      display: block;
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid rgba(23, 32, 42, 0.1);
+      background: var(--day-soft);
+    }
+
+    .detail-text {
+      margin: 8px 0 0;
+      color: #394654;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .detail-credit {
+      display: inline-block;
+      margin-top: 5px;
+      color: color-mix(in srgb, var(--day-color) 75%, black);
+      font-size: 11px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .detail-credit:hover {
+      text-decoration: underline;
+    }
+
+    .map-pin {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      border: 2px solid #ffffff;
+      border-radius: 999px;
+      background: var(--pin-color);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 850;
+      line-height: 1;
+      box-shadow: 0 8px 18px rgba(23, 32, 42, 0.28);
+      transition: transform 150ms ease, box-shadow 150ms ease;
+    }
+
+    .map-pin.active {
+      transform: scale(1.34);
+      box-shadow: 0 0 0 6px color-mix(in srgb, var(--pin-color) 24%, transparent), 0 12px 24px rgba(23, 32, 42, 0.32);
+    }
+
+    .map-pin svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2.25;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    .leaflet-popup-content {
+      margin: 10px 12px 11px;
+      min-width: 190px;
+    }
+
+    .popup-time {
+      color: var(--popup-color);
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .popup-title {
+      margin-top: 3px;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .popup-note {
+      margin-top: 4px;
+      color: #536170;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .leaflet-control-layers,
+    .leaflet-bar {
+      border: 0 !important;
+      box-shadow: 0 8px 24px rgba(23, 32, 42, 0.15) !important;
+    }
+
+    @media (max-width: 860px) {
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: 40dvh 60dvh;
+        height: 100vh;
+        height: 100dvh;
+        min-height: 0;
+      }
+
+      #map {
+        min-height: 0;
+      }
+
+      .timeline {
+        border-top: 1px solid rgba(23, 32, 42, 0.1);
+        border-left: 0;
+      }
+
+      .timeline-header {
+        padding: 12px 16px 10px;
+      }
+
+      h1 {
+        font-size: 17px;
+      }
+
+      .subhead {
+        display: none;
+      }
+
+      .legend {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-top: 10px;
+      }
+
+      .legend-item {
+        font-size: 11px;
+      }
+
+      .timeline-list {
+        padding: 12px 14px 28px;
+      }
+
+      .day-title {
+        top: -12px;
+      }
+
+      .stop {
+        grid-template-columns: 58px minmax(0, 1fr);
+        padding: 11px 10px 11px 12px;
+      }
+
+      .stop-detail {
+        padding-left: 68px;
+      }
+
+      .detail-image {
+        height: 132px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section id="map" aria-label="Iceland itinerary map"></section>
+    <aside class="timeline" aria-label="Itinerary timeline">
+      <header class="timeline-header">
+        <h1>Iceland Camper Itinerary</h1>
+        <p class="subhead">Hover map stops or route legs to sync the timeline. Hover, click, or scroll the timeline to highlight the matching map point.</p>
+        <div class="legend" aria-label="Day color legend">
+          <div class="legend-item"><span class="legend-swatch" style="background: var(--friday)"></span>Friday</div>
+          <div class="legend-item"><span class="legend-swatch" style="background: var(--saturday)"></span>Saturday</div>
+          <div class="legend-item"><span class="legend-swatch" style="background: var(--sunday)"></span>Sunday</div>
+          <div class="legend-item"><span class="legend-swatch" style="background: var(--monday)"></span>Monday</div>
+        </div>
+      </header>
+      <div id="timelineList" class="timeline-list"></div>
+    </aside>
+  </main>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    crossorigin=""
+  ></script>
+  <script>
+    const dayStyles = {
+      friday: { label: "Friday", color: "#2477c3", soft: "#e8f3fd" },
+      saturday: { label: "Saturday", color: "#e28c1b", soft: "#fff1dc" },
+      sunday: { label: "Sunday", color: "#2f9d7e", soft: "#e5f6f0" },
+      monday: { label: "Monday", color: "#7b5fc7", soft: "#f0ecff" }
+    };
+
+    const commons = (file) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=900`;
+    const commonsPage = (file) => `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(file).replaceAll("%20", "_")}`;
+
+    const days = [
+      {
+        key: "friday",
+        title: "Friday — Arrival, Hvammsvík, Golden Circle",
+        subtitle: "Airport to hot springs to Golden Circle",
+        stops: [
+          ["fri-0900", "9:00am", "Arrive at Keflavík Airport", "Land, collect bags, get through airport.", 63.9850, -22.6056],
+          ["fri-1000", "10:00am", "Pick up camper van", "Shuttle/check-in, inspect van, confirm return instructions.", 63.9861, -22.5947],
+          ["fri-1100", "11:00am", "Groceries near Keflavík/Reykjavík", "Stock breakfast, snacks, simple dinners, water, coffee.", 64.1265, -21.8174],
+          ["fri-1230", "12:30pm", "Hvammsvík Hot Springs", "Geothermal ocean-side soak in Hvalfjörður.", 64.3702, -21.5733, {
+            image: "https://hvammsvik.com/wp-content/uploads/2026/04/hvammsvik_181-1-scaled.jpg",
+            credit: "Hvammsvík",
+            creditUrl: "https://hvammsvik.com/",
+            detail: "This is a scenic hot-springs stop, but it is farther from Keflavík than the airport-area spas. Keep the soak efficient, book ahead, and use the drive afterward as the transition into the Golden Circle."
+          }],
+          ["fri-1500", "3:00pm", "Drive toward Golden Circle", "Scenic drive inland from Hvalfjörður toward Þingvellir.", 64.2550, -21.5900],
+          ["fri-1600", "4:00pm", "Þingvellir National Park", "Rift valley, lake views, Icelandic history.", 64.2559, -21.1295, {
+            image: commons("Thingvellir National Park rift valley.jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Thingvellir National Park rift valley.jpg"),
+            detail: "This is the first major landscape stop: walk a short section through the rift valley, take in the lake views, and keep the visit focused so there is still time for the rest of the Golden Circle."
+          }],
+          ["fri-1730", "5:30pm", "Geysir geothermal area", "Bubbling pools and erupting Strokkur geyser.", 64.3104, -20.3024, {
+            image: commons("Strokkur, Iceland.jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Strokkur, Iceland.jpg"),
+            detail: "Strokkur erupts frequently enough that this can be a satisfying shorter stop. Stay on the marked paths around the hot pools and give yourself a few eruption cycles before moving on."
+          }],
+          ["fri-1830", "6:30pm", "Gullfoss waterfall", "Huge canyon waterfall, dramatic evening stop.", 64.3271, -20.1199, {
+            image: commons("Gullfoss, an iconic waterfall of Iceland.jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Gullfoss, an iconic waterfall of Iceland.jpg"),
+            detail: "The upper viewpoints are the quickest way to get the scale of the falls. If conditions are good, add the lower path, but expect spray and wind near the canyon."
+          }],
+          ["fri-1930", "7:30pm", "Camp near Geysir/Gullfoss", "Convenient overnight before the South Coast.", 64.3090, -20.2990],
+          ["fri-evening", "Evening", "Camper dinner / hot showers", "Settle into van life, early-ish night.", 64.3090, -20.2990]
+        ]
+      },
+      {
+        key: "saturday",
+        title: "Saturday — Golden Circle to South Coast and Vík",
+        subtitle: "Crater, waterfalls, cliffs, black sand",
+        stops: [
+          ["sat-0800", "8:00am", "Breakfast at campsite", "Coffee, simple camper breakfast, pack up.", 64.3090, -20.2990],
+          ["sat-0900", "9:00am", "Kerið Crater", "Colorful volcanic crater lake.", 64.0413, -20.8851, {
+            image: commons("Kerid-grimsnes.jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Kerid-grimsnes.jpg"),
+            detail: "A compact stop with a big visual payoff. The rim walk gives the best overview of the red volcanic slopes and crater lake without adding much time to the morning."
+          }],
+          ["sat-1030", "10:30am", "Drive toward South Coast", "Head toward waterfalls and ocean cliffs.", 63.9330, -20.6500],
+          ["sat-1200", "12:00pm", "Seljalandsfoss", "Waterfall you can walk behind.", 63.6156, -19.9886, {
+            image: commons("Seljalandsfoss, Iceland, 20230501 1329 3939.jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Seljalandsfoss, Iceland, 20230501 1329 3939.jpg"),
+            detail: "Bring a rain shell if you plan to take the path behind the falls. The walk is short but wet, and the stop pairs naturally with nearby Gljúfrabúi."
+          }],
+          ["sat-1245", "12:45pm", "Gljúfrabúi", "Hidden waterfall inside a canyon.", 63.6209, -19.9856, {
+            detail: "This is the quieter companion to Seljalandsfoss. Expect slick rocks and spray inside the narrow canyon opening; waterproof shoes make the visit much more comfortable."
+          }],
+          ["sat-1330", "1:30pm", "Lunch stop", "Camper lunch or café on the route.", 63.5277, -19.5114],
+          ["sat-1430", "2:30pm", "Skógafoss", "Big classic waterfall with stairs viewpoint.", 63.5321, -19.5114, {
+            image: commons("Skogafoss, iceland.jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Skogafoss, iceland.jpg"),
+            detail: "This is one of the easiest dramatic waterfall stops on the South Coast. If energy is good, climb the stairs for the top view; otherwise the base view is still excellent."
+          }],
+          ["sat-1530", "3:30pm", "Kvernufoss or Skógar Museum", "Quieter waterfall or local history museum.", 63.5270, -19.4807, {
+            image: commons("Kvernufoss.JPG"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Kvernufoss.JPG"),
+            detail: "Kvernufoss is a good low-crowd waterfall choice near Skógar. If weather turns rough or the group wants an indoor break, the museum is the practical alternative."
+          }],
+          ["sat-1700", "5:00pm", "Dyrhólaey", "Sea cliffs, arch, possible puffins in season.", 63.3992, -19.1269, {
+            image: commons("Dyrhólaey in Iceland.jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Dyrhólaey in Iceland.jpg"),
+            detail: "Treat this as both a viewpoint and a wildlife stop. Keep distance from cliff edges and nesting areas, and bring binoculars if puffins are a priority."
+          }],
+          ["sat-1830", "6:30pm", "Reynisfjara black sand beach", "Basalt columns and powerful surf; stay far back.", 63.4042, -19.0449, {
+            image: commons("Reynisfjara, Iceland, 20230501 1641 4049.jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Reynisfjara, Iceland, 20230501 1641 4049.jpg"),
+            detail: "The basalt columns and sea stacks are the draw, but the surf is genuinely dangerous. Stay well back from the waterline and never turn your back on the waves."
+          }],
+          ["sat-1930", "7:30pm", "Vík dinner / supplies", "Small-town dinner or grocery top-up.", 63.4186, -19.0060],
+          ["sat-2030", "8:30pm", "Camp in or near Vík", "Best overnight for puffin retry next morning.", 63.4195, -19.0059]
+        ]
+      },
+      {
+        key: "sunday",
+        title: "Sunday — Puffin retry, hot river, Reykjavík/Keflavík",
+        subtitle: "Vík to hot river and final camp",
+        stops: [
+          ["sun-0730", "7:30am", "Breakfast in Vík", "Slow morning, check weather and roads.", 63.4186, -19.0060],
+          ["sun-0830", "8:30am", "Dyrhólaey puffin retry", "Best chance early if in puffin season.", 63.3992, -19.1269, {
+            image: commons("Puffins from Dyrhólaey (20107003960).jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Puffins from Dyrhólaey (20107003960).jpg"),
+            detail: "Early morning gives you a calmer retry before the return drive. Puffin timing depends on season and conditions, so consider this a bonus rather than a guarantee."
+          }],
+          ["sun-1000", "10:00am", "Explore Vík area", "Beach views, church viewpoint, lava fields.", 63.4198, -19.0091, {
+            image: commons("Vík Church.jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Vík Church.jpg"),
+            detail: "Keep this flexible: the church viewpoint is quick, the beach views are weather-dependent, and this slot can absorb time if the morning puffin stop runs long."
+          }],
+          ["sun-1130", "11:30am", "Start driving west", "Begin return toward Hveragerði/Reykjavík.", 63.6100, -19.6200],
+          ["sun-1230", "12:30pm", "Lunch stop", "Camper lunch or roadside café.", 63.8374, -20.9963],
+          ["sun-1400", "2:00pm", "Reykjadalur hot river hike", "Natural geothermal river soak after hiking.", 64.0225, -21.2110, {
+            image: commons("Reykjadalur Valley - Iceland.jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Reykjadalur Valley - Iceland.jpg"),
+            detail: "This is the most time-sensitive Sunday activity because it includes hiking plus soaking. Check weather, pack towels and layers, and turn around early if the final-night logistics start getting tight."
+          }],
+          ["sun-1700", "5:00pm", "Drive toward Reykjavík", "Head into the city with time to walk before dinner.", 64.0800, -21.6500],
+          ["sun-1800", "6:00pm", "Reykjavík walk and dinner", "Walk the center, waterfront, Hallgrímskirkja area, and grab a casual dinner.", 64.1466, -21.9426, {
+            image: commons("Reykjavik, Iceland-13July2011.jpg"),
+            credit: "Wikimedia Commons",
+            creditUrl: commonsPage("Reykjavik, Iceland-13July2011.jpg"),
+            detail: "Sunday is the cleanest place to add Reykjavík time. Park once, walk the compact center, then keep dinner casual so the final campsite and Monday van return stay low-stress."
+          }],
+          ["sun-2030", "8:30pm", "Camp near Reykjavík or Keflavík", "Prioritize easy Monday van return.", 64.0670, -22.0480],
+          ["sun-evening", "Evening", "Pack and organize van", "Pre-clean, sort bags, prep early departure.", 64.0670, -22.0480]
+        ]
+      },
+      {
+        key: "monday",
+        title: "Monday — Return van and fly out",
+        subtitle: "Keflavík departure",
+        stops: [
+          ["mon-0545", "5:45am", "Wake up and final pack", "Bedding, bags, trash, quick van cleanup.", 64.0670, -22.0480],
+          ["mon-0615", "6:15am", "Fuel / empty waste if needed", "Follow rental company return rules.", 63.9969, -22.5606],
+          ["mon-0700", "7:00am", "Return camper van", "Drop-off, inspection, shuttle to airport.", 63.9861, -22.5947],
+          ["mon-0800", "8:00am", "Arrive at Keflavík Airport", "Check bags, security, breakfast.", 63.9850, -22.6056],
+          ["mon-1030", "10:30am", "Flight departs", "Leave Iceland.", 63.9850, -22.6056]
+        ]
+      }
+    ];
+
+    const flatStops = days.flatMap((day) =>
+      day.stops.map((stop, index) => ({
+        id: stop[0],
+        time: stop[1],
+        title: stop[2],
+        note: stop[3],
+        lat: stop[4],
+        lng: stop[5],
+        detail: stop[6] || null,
+        day: day.key,
+        dayLabel: dayStyles[day.key].label,
+        color: dayStyles[day.key].color,
+        order: index + 1
+      }))
+    );
+
+    const map = L.map("map", {
+      zoomControl: true,
+      scrollWheelZoom: true
+    }).setView([64.02, -20.9], 8);
+
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const markerById = new Map();
+    const elementById = new Map();
+    const campsiteStopIds = new Set(["fri-1930", "sat-2030", "sun-2030"]);
+    let activeId = null;
+    let expandedDetailId = null;
+    let suppressObserver = false;
+
+    function iconFor(stop, isActive = false) {
+      const className = isActive ? "map-pin active" : "map-pin";
+      const iconContent = campsiteStopIds.has(stop.id) ? `
+        <svg viewBox="0 0 24 24" aria-label="Campsite" role="img">
+          <path d="M3 20h18"></path>
+          <path d="M12 4l8 16"></path>
+          <path d="M12 4L4 20"></path>
+          <path d="M12 4v16"></path>
+          <path d="M8.5 20 12 13l3.5 7"></path>
+        </svg>
+      ` : stop.order;
+      return L.divIcon({
+        className: "",
+        html: `<div class="${className}" style="--pin-color:${stop.color}">${iconContent}</div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+        popupAnchor: [0, -14]
+      });
+    }
+
+    function renderTimeline() {
+      const timeline = document.querySelector("#timelineList");
+      timeline.innerHTML = days.map((day) => {
+        const style = dayStyles[day.key];
+        const stops = day.stops.map((stop) => {
+          const detail = stop[6];
+          const detailMarkup = detail ? `
+            <div class="stop-detail" aria-label="Expanded details">
+              ${detail.image ? `<img class="detail-image" src="${detail.image}" alt="${stop[2]}">` : ""}
+              <p class="detail-text">${detail.detail}</p>
+              ${detail.creditUrl ? `<a class="detail-credit" href="${detail.creditUrl}" target="_blank" rel="noreferrer">${detail.credit}</a>` : ""}
+            </div>
+          ` : "";
+
+          return `
+          <article class="stop" id="tl-${stop[0]}" data-id="${stop[0]}">
+            <div class="time">${stop[1]}</div>
+            <div>
+              <h3 class="stop-title">${stop[2]}</h3>
+              <p class="stop-note">${stop[3]}</p>
+            </div>
+            ${detailMarkup}
+          </article>
+        `;
+        }).join("");
+
+        return `
+          <section class="day" style="--day-color:${style.color};--day-soft:${style.soft}">
+            <h2 class="day-title"><strong>${day.title}</strong><span>${day.subtitle}</span></h2>
+            ${stops}
+          </section>
+        `;
+      }).join("");
+
+      document.querySelectorAll(".stop").forEach((el) => {
+        elementById.set(el.dataset.id, el);
+        el.addEventListener("mouseenter", () => setActive(el.dataset.id, { source: "timeline", panIfNeeded: true }));
+        el.addEventListener("focusin", () => setActive(el.dataset.id, { source: "timeline", panIfNeeded: true }));
+        el.addEventListener("click", () => setActive(el.dataset.id, { source: "timeline", panIfNeeded: true, popup: true, detail: true }));
+      });
+    }
+
+    function addMapLayers() {
+      days.forEach((day) => {
+        const style = dayStyles[day.key];
+        const dayStops = flatStops.filter((stop) => stop.day === day.key);
+        const coords = dayStops.map((stop) => [stop.lat, stop.lng]);
+
+        L.polyline(coords, {
+          color: style.color,
+          weight: 5,
+          opacity: 0.9,
+          lineJoin: "round"
+        }).addTo(map);
+
+        for (let i = 0; i < coords.length - 1; i += 1) {
+          L.polyline([coords[i], coords[i + 1]], {
+            color: style.color,
+            weight: 18,
+            opacity: 0,
+            interactive: true
+          })
+            .addTo(map)
+            .on("mouseover", () => setActive(dayStops[i + 1].id, { source: "map", scroll: true }))
+            .on("click", () => setActive(dayStops[i + 1].id, { source: "map", scroll: true, popup: true, detail: true }));
+        }
+
+        dayStops.forEach((stop) => {
+          const marker = L.marker([stop.lat, stop.lng], { icon: iconFor(stop) }).addTo(map);
+          marker.bindPopup(`
+            <div style="--popup-color:${stop.color}">
+              <div class="popup-time">${stop.dayLabel} · ${stop.time}</div>
+              <div class="popup-title">${stop.title}</div>
+              <div class="popup-note">${stop.note}</div>
+            </div>
+          `);
+          marker.on("mouseover", () => setActive(stop.id, { source: "map", scroll: true }));
+          marker.on("click", () => setActive(stop.id, { source: "map", scroll: true, popup: true, detail: true }));
+          if (campsiteStopIds.has(stop.id)) marker.setZIndexOffset(700);
+          markerById.set(stop.id, marker);
+        });
+      });
+
+      const bounds = L.latLngBounds(flatStops.map((stop) => [stop.lat, stop.lng]));
+      map.fitBounds(bounds, { padding: [42, 42] });
+    }
+
+    function setExpandedDetail(id) {
+      if (expandedDetailId && expandedDetailId !== id) {
+        elementById.get(expandedDetailId)?.classList.remove("expanded");
+      }
+
+      expandedDetailId = id;
+      elementById.get(id)?.classList.toggle("expanded", Boolean(flatStops.find((stop) => stop.id === id)?.detail));
+    }
+
+    function setActive(id, options = {}) {
+      if (!id || id === activeId && !options.popup && !options.detail) return;
+
+      const previousId = activeId;
+      activeId = id;
+
+      if (previousId) {
+        elementById.get(previousId)?.classList.remove("active");
+        const previousStop = flatStops.find((stop) => stop.id === previousId);
+        const previousMarker = markerById.get(previousId);
+        if (previousStop && previousMarker) previousMarker.setIcon(iconFor(previousStop));
+      }
+
+      const stop = flatStops.find((item) => item.id === id);
+      const marker = markerById.get(id);
+      const element = elementById.get(id);
+      if (!stop || !marker || !element) return;
+
+      element.classList.add("active");
+      marker.setIcon(iconFor(stop, true));
+      marker.setZIndexOffset(1000);
+
+      if (options.detail) {
+        setExpandedDetail(id);
+      }
+
+      if (options.scroll) {
+        suppressObserver = true;
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        window.setTimeout(() => { suppressObserver = false; }, 520);
+      }
+
+      if (options.pan) {
+        map.panTo([stop.lat, stop.lng], { animate: true, duration: 0.45 });
+      }
+
+      if (options.panIfNeeded && !map.getBounds().contains([stop.lat, stop.lng])) {
+        map.panTo([stop.lat, stop.lng], { animate: true, duration: 0.45 });
+      }
+
+      if (options.popup) {
+        marker.openPopup();
+      }
+    }
+
+    function setupScrollSync() {
+      const root = document.querySelector("#timelineList");
+      let scheduled = false;
+
+      root.addEventListener("scroll", () => {
+        if (suppressObserver || scheduled) return;
+        scheduled = true;
+        window.requestAnimationFrame(() => {
+          scheduled = false;
+          if (suppressObserver) return;
+
+          const rootRect = root.getBoundingClientRect();
+          const center = rootRect.top + rootRect.height * 0.48;
+          let closest = null;
+          let closestDistance = Number.POSITIVE_INFINITY;
+
+          elementById.forEach((el, id) => {
+            const rect = el.getBoundingClientRect();
+            if (rect.bottom < rootRect.top || rect.top > rootRect.bottom) return;
+            const itemCenter = rect.top + rect.height / 2;
+            const distance = Math.abs(center - itemCenter);
+            if (distance < closestDistance) {
+              closest = id;
+              closestDistance = distance;
+            }
+          });
+
+          if (closest) setActive(closest, { source: "scroll", panIfNeeded: true });
+        });
+      }, { passive: true });
+    }
+
+    renderTimeline();
+    addMapLayers();
+    setupScrollSync();
+    setActive(flatStops[0].id, { pan: false });
+  </script>
+</body>
+</html>
